@@ -1,0 +1,1445 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="author" content="Franciszek Badowski" />
+  <title>FSM Beskid 106 - Legenda Szos PRL</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #12151c; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #fff; touch-action: none; }
+    canvas { display: block; width: 100%; height: 100%; }
+
+    /* HUD */
+    #hud {
+      position: fixed; top: 0; left: 0; right: 0;
+      display: flex; justify-content: space-between; align-items: flex-start;
+      padding: 12px 16px; pointer-events: none; z-index: 10;
+    }
+    .hud-group { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .hud-badge {
+      background: rgba(15, 20, 30, 0.82);
+      border: 1.5px solid rgba(255, 255, 255, 0.16);
+      border-radius: 10px;
+      padding: 6px 12px;
+      font-size: 14px;
+      font-weight: 700;
+      backdrop-filter: blur(4px);
+      display: flex; align-items: center; gap: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+    }
+    .fuel-bar-wrap {
+      width: 90px; height: 12px; background: #2c3342; border-radius: 6px; overflow: hidden; border: 1px solid #475269;
+    }
+    #fuelBar {
+      height: 100%; width: 100%; background: linear-gradient(90deg, #ef4444, #f59e0b, #22c55e);
+      transition: width 0.1s linear;
+    }
+    .hud-btn {
+      pointer-events: auto;
+      background: #e11d48;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 8px 13px;
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(225, 29, 72, 0.4);
+      transition: transform 0.1s, background 0.15s;
+    }
+    .hud-btn:active { transform: scale(0.95); }
+    .hud-btn.secondary { background: #2563eb; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4); }
+    .hud-btn.amber { background: #d97706; box-shadow: 0 4px 12px rgba(217, 119, 6, 0.4); }
+
+    /* Station Prompt */
+    #stationBanner {
+      position: fixed; top: 72px; left: 50%; transform: translateX(-50%);
+      background: linear-gradient(135deg, #dc2626, #991b1b);
+      border: 2px solid #fde047;
+      border-radius: 14px;
+      padding: 10px 18px;
+      display: none; align-items: center; gap: 12px;
+      z-index: 15; box-shadow: 0 8px 25px rgba(0,0,0,0.55);
+      animation: pulseBanner 1.2s infinite alternate;
+    }
+    @keyframes pulseBanner { from { transform: translateX(-50%) scale(1); } to { transform: translateX(-50%) scale(1.04); } }
+    #stationBanner button {
+      background: #fde047; color: #111; border: none; border-radius: 8px;
+      padding: 7px 14px; font-weight: 900; font-size: 13px; cursor: pointer;
+    }
+
+    /* Touch Controls */
+    #controls {
+      position: fixed; bottom: 18px; left: 18px; right: 18px;
+      display: flex; justify-content: space-between; pointer-events: none; z-index: 10;
+    }
+    .pedal-btn {
+      pointer-events: auto;
+      width: 115px; height: 74px;
+      border-radius: 16px;
+      border: 2px solid rgba(255,255,255,0.25);
+      background: rgba(20, 26, 38, 0.72);
+      color: #fff;
+      font-weight: 900; font-size: 15px; letter-spacing: 0.5px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+      backdrop-filter: blur(4px);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+      cursor: pointer;
+    }
+    .pedal-btn.active, .pedal-btn:active {
+      background: rgba(234, 179, 8, 0.85); color: #111; border-color: #fef08a; transform: scale(0.96);
+    }
+    .pedal-btn.brake.active, .pedal-btn.brake:active {
+      background: rgba(239, 68, 68, 0.85); color: #fff; border-color: #fecaca;
+    }
+
+    /* Author Watermark in HUD */
+    #hudAuthor {
+      position: fixed; bottom: 6px; left: 50%; transform: translateX(-50%);
+      font-size: 11px; color: rgba(255,255,255,0.55); pointer-events: none; z-index: 9;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+    }
+
+    /* Overlays & Modals */
+    .overlay {
+      position: fixed; inset: 0;
+      background: rgba(10, 14, 22, 0.86);
+      backdrop-filter: blur(6px);
+      display: flex; align-items: center; justify-content: center;
+      padding: 16px; z-index: 30;
+    }
+    .hidden { display: none !important; }
+    .modal {
+      background: #1a2130;
+      border: 2px solid #334155;
+      border-radius: 18px;
+      width: 100%; max-width: 540px; max-height: 90vh;
+      overflow-y: auto;
+      padding: 20px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.65);
+    }
+    .modal-header {
+      display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid #2e3a52; padding-bottom: 12px; margin-bottom: 14px;
+    }
+    .modal-header h2 { font-size: 20px; color: #facc15; }
+    .close-btn {
+      background: #334155; color: #fff; border: none; border-radius: 8px;
+      padding: 6px 12px; font-weight: 700; cursor: pointer;
+    }
+
+    /* Start Screen */
+    .title-logo {
+      text-align: center; margin-bottom: 14px;
+    }
+    .title-logo .tag {
+      display: inline-block; background: #dc2626; color: #fff; font-size: 11px; font-weight: 800;
+      padding: 3px 10px; border-radius: 20px; letter-spacing: 1px; margin-bottom: 6px;
+    }
+    .title-logo h1 { font-size: 28px; color: #facc15; line-height: 1.15; }
+    .title-logo p { font-size: 13px; color: #cbd5e1; margin-top: 4px; }
+    .author-credit {
+      text-align: center; font-size: 13px; color: #94a3b8; margin-top: 6px; font-weight: 600;
+    }
+    .author-credit strong { color: #f8fafc; }
+
+    .primary-cta {
+      width: 100%; padding: 14px; border: none; border-radius: 12px;
+      background: linear-gradient(135deg, #facc15, #eab308);
+      color: #111827; font-size: 17px; font-weight: 900; cursor: pointer;
+      margin-top: 12px; box-shadow: 0 6px 20px rgba(234, 179, 8, 0.4);
+    }
+    .secondary-cta {
+      width: 100%; padding: 11px; border: 1.5px solid #475569; border-radius: 12px;
+      background: #242f44; color: #fff; font-size: 14px; font-weight: 800; cursor: pointer;
+      margin-top: 8px;
+    }
+
+    /* High scores table */
+    .scores-box {
+      background: #131824; border: 1px solid #2b354b; border-radius: 12px;
+      padding: 10px 12px; margin-top: 12px;
+    }
+    .scores-box h3 { font-size: 13px; color: #94a3b8; margin-bottom: 6px; text-transform: uppercase; }
+    .score-row {
+      display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0;
+      border-bottom: 1px dashed #263044;
+    }
+    .score-row:last-child { border-bottom: none; }
+
+    /* Garage Items */
+    .upgrade-card {
+      background: #131824; border: 1px solid #2e3a52; border-radius: 12px;
+      padding: 12px; margin-bottom: 10px;
+      display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    }
+    .upgrade-info h4 { font-size: 15px; color: #f8fafc; }
+    .upgrade-info p { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+    .buy-btn {
+      background: #16a34a; color: #fff; border: none; border-radius: 9px;
+      padding: 8px 12px; font-weight: 800; font-size: 13px; cursor: pointer; white-space: nowrap;
+    }
+    .buy-btn:disabled { background: #334155; color: #94a3b8; cursor: not-allowed; }
+    .paint-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 8px; }
+    .paint-btn {
+      padding: 9px; border-radius: 9px; border: 2px solid #334155; background: #131824;
+      color: #fff; font-weight: 700; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 8px;
+    }
+    .paint-btn.selected { border-color: #facc15; background: #1e293b; }
+    .swatch { width: 18px; height: 18px; border-radius: 50%; border: 1px solid #fff; flex-shrink: 0; }
+
+    /* Scratchcard */
+    .scratch-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+    .scratch-tab {
+      flex: 1; padding: 8px; border-radius: 9px; border: 1.5px solid #334155;
+      background: #131824; color: #cbd5e1; font-size: 12px; font-weight: 800; cursor: pointer; text-align: center;
+    }
+    .scratch-tab.active { border-color: #facc15; color: #facc15; background: #1e293b; }
+    .scratch-stage {
+      position: relative; width: 100%; max-width: 320px; height: 150px; margin: 0 auto;
+      border-radius: 14px; overflow: hidden; border: 2px solid #facc15;
+      background: linear-gradient(135deg, #fef08a, #fde047);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      color: #111827;
+    }
+    #scratchCanvas {
+      position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; touch-action: none;
+    }
+    .modal-footer-author {
+      margin-top: 14px; padding-top: 10px; border-top: 1px solid #2e3a52;
+      text-align: center; font-size: 12px; color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="hud-group">
+      <div class="hud-badge">💰 <span id="hudMoney">150</span> zł</div>
+      <div class="hud-badge">🛣️ <span id="hudDist">0</span> m</div>
+      <div class="hud-badge">
+        ⛽
+        <div class="fuel-bar-wrap"><div id="fuelBar"></div></div>
+      </div>
+    </div>
+    <div class="hud-group">
+      <button class="hud-btn secondary" id="timeToggleBtn" title="Zmień porę dnia">☀️ Dzień</button>
+      <button class="hud-btn amber" id="openGarageBtn">🔧 Garaż</button>
+    </div>
+  </div>
+
+  <!-- Station Banner -->
+  <div id="stationBanner">
+    <div>
+      <div style="font-weight:900; font-size:14px; color:#fef08a;">⛽ STACJA PALIW CPN</div>
+      <div style="font-size:12px;">Zatankuj Beskida lub kup zdrapkę!</div>
+    </div>
+    <button id="enterStationBtn">Wjedź na stację</button>
+  </div>
+
+  <div id="hudAuthor">Autor: Franciszek Badowski</div>
+
+  <!-- Touch Controls -->
+  <div id="controls">
+    <button class="pedal-btn brake" id="btnBrake">
+      <span>HAMULEC</span>
+      <span style="font-size:11px; opacity:0.8;">◀ / A</span>
+    </button>
+    <button class="pedal-btn" id="btnGas">
+      <span>GAZ</span>
+      <span style="font-size:11px; opacity:0.8;">▶ / D</span>
+    </button>
+  </div>
+
+  <!-- Start Screen -->
+  <div class="overlay" id="startOverlay">
+    <div class="modal">
+      <div class="title-logo">
+        <div class="tag">PROTOTYP Z BIELSKA-BIAŁEJ • 1983</div>
+        <h1>FSM BESKID 106<br>Legenda Szos PRL</h1>
+        <p>Pokonuj polskie bezdroża, odwiedzaj stacje CPN, zdrapuj nagrody i ulepszaj kultowy prototyp!</p>
+        <div class="author-credit">Autor gry: <strong>Franciszek Badowski</strong></div>
+      </div>
+
+      <button class="primary-cta" id="startGameBtn">🚗 RUSZAJ W TRASĘ</button>
+      <button class="secondary-cta" id="startGarageBtn">🔧 OTWÓRZ GARAŻ I TUNING</button>
+
+      <div class="scores-box">
+        <h3>🏆 Najlepsze przejazdy (Top 5)</h3>
+        <div id="highScoresList"></div>
+      </div>
+
+      <div class="modal-footer-author">© Franciszek Badowski • FSM Beskid 106 2D</div>
+    </div>
+  </div>
+
+  <!-- Game Over Screen -->
+  <div class="overlay hidden" id="gameOverOverlay">
+    <div class="modal">
+      <div class="title-logo">
+        <div class="tag" id="gameOverReason">BRAK PALIWA</div>
+        <h1>KONIEC TRASY!</h1>
+        <p id="gameOverSummary">Przejechałeś 0 m i zebrałeś 0 zł.</p>
+        <div class="author-credit">Autor: <strong>Franciszek Badowski</strong></div>
+      </div>
+
+      <div class="scores-box">
+        <h3>🏆 Tabela Najlepszych Wyników</h3>
+        <div id="gameOverScoresList"></div>
+      </div>
+
+      <button class="primary-cta" id="restartBtn">🔄 JEDŹ PONOWNIE</button>
+      <button class="secondary-cta" id="gameOverGarageBtn">🔧 ULEPSZ BESKIDA W GARAŻU</button>
+      <div class="modal-footer-author">© Franciszek Badowski</div>
+    </div>
+  </div>
+
+  <!-- Garage Modal -->
+  <div class="overlay hidden" id="garageOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>🔧 Garaż FSM Beskid 106</h2>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-weight:800; color:#4ade80;">💰 <span id="garageMoney">0</span> zł</span>
+          <button class="close-btn" id="closeGarageBtn">Zamknij ✕</button>
+        </div>
+      </div>
+
+      <div class="upgrade-card">
+        <div class="upgrade-info">
+          <h4>Silnik 700 cm³ / Tuning (Poz. <span id="lvlEngine">1</span>/5)</h4>
+          <p id="engineDesc">Większa moc i prędkość maksymalna Beskida.</p>
+        </div>
+        <button class="buy-btn" id="buyEngineBtn">100 zł</button>
+      </div>
+
+      <div class="upgrade-card">
+        <div class="upgrade-info">
+          <h4>Zawieszenie i Opony Stomil (Poz. <span id="lvlSusp">1</span>/5)</h4>
+          <p>Lepsza amortyzacja wybojów i przyczepność na podjazdach.</p>
+        </div>
+        <button class="buy-btn" id="buySuspBtn">90 zł</button>
+      </div>
+
+      <div class="upgrade-card">
+        <div class="upgrade-info">
+          <h4>Zbiornik Paliwa (Poz. <span id="lvlFuel">1</span>/5)</h4>
+          <p>Większa pojemność baku na dłuższe dystanse.</p>
+        </div>
+        <button class="buy-btn" id="buyFuelBtn">80 zł</button>
+      </div>
+
+      <h3 style="font-size:14px; color:#facc15; margin:12px 0 6px;">Dodatki PRL</h3>
+      <div class="upgrade-card">
+        <div class="upgrade-info">
+          <h4>🧳 Bagażnik dachowy z walizkami</h4>
+          <p>+15% dodatkowej rezerwy paliwa w kanistrze.</p>
+        </div>
+        <button class="buy-btn" id="buyRackBtn">140 zł</button>
+      </div>
+
+      <div class="upgrade-card">
+        <div class="upgrade-info">
+          <h4>💡 Halogeny rajdowe Zelmot</h4>
+          <p>Dalekosiężne szperacze rozświetlające nocną trasę.</p>
+        </div>
+        <button class="buy-btn" id="buyLightsBtn">120 zł</button>
+      </div>
+
+      <div class="upgrade-card">
+        <div class="upgrade-info">
+          <h4>🏁 Tylny spojler aerodynamiczny</h4>
+          <p>Dociska auto przy dużych prędkościach i skokach.</p>
+        </div>
+        <button class="buy-btn" id="buySpoilerBtn">160 zł</button>
+      </div>
+
+      <h3 style="font-size:14px; color:#facc15; margin:12px 0 4px;">Lakier Nadwozia</h3>
+      <div class="paint-grid" id="paintGrid"></div>
+
+      <div class="modal-footer-author">Projekt i wykonanie: Franciszek Badowski</div>
+    </div>
+  </div>
+
+  <!-- CPN Gas Station & Scratchcard Modal -->
+  <div class="overlay hidden" id="stationOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>⛽ Stacja Paliw CPN</h2>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-weight:800; color:#4ade80;">💰 <span id="stationMoney">0</span> zł</span>
+          <button class="close-btn" id="closeStationBtn">Wyjedź ✕</button>
+        </div>
+      </div>
+
+      <div class="upgrade-card">
+        <div class="upgrade-info">
+          <h4>Dystrybutor Etylina 94</h4>
+          <p>Stan baku: <strong id="stationFuelPct">100%</strong> • Pełne tankowanie</p>
+        </div>
+        <button class="buy-btn" id="refuelBtn">Zatankuj (25 zł)</button>
+      </div>
+
+      <h3 style="font-size:15px; color:#facc15; margin:14px 0 8px;">🎟️ Kiosk RUCH-u: Zdrapki PRL</h3>
+      <div class="scratch-tabs">
+        <button class="scratch-tab active" data-tier="0">Szybkie 50 zł<br><small>Koszt: 15 zł</small></button>
+        <button class="scratch-tab" data-tier="1">Złoty Beskid<br><small>Koszt: 35 zł</small></button>
+        <button class="scratch-tab" data-tier="2">Kilometr PRL<br><small>Koszt: 70 zł</small></button>
+      </div>
+
+      <div class="scratch-stage">
+        <div style="font-size:12px; font-weight:800; text-transform:uppercase;">Twoja Wygrana:</div>
+        <div id="scratchPrizeText" style="font-size:32px; font-weight:900; margin:4px 0;">0 zł</div>
+        <div id="scratchSubText" style="font-size:12px; font-weight:700;">Kup zdrapkę poniżej i zdrap palcem!</div>
+        <canvas id="scratchCanvas" width="320" height="150"></canvas>
+      </div>
+
+      <div style="display:flex; gap:8px; margin-top:10px;">
+        <button class="primary-cta" style="margin-top:0; font-size:14px; padding:11px;" id="buyScratchBtn">🎟️ Kup nową zdrapkę</button>
+        <button class="secondary-cta" style="margin-top:0; width:auto; padding:11px 14px;" id="revealScratchBtn">Zdrap wszystko</button>
+      </div>
+
+      <div class="modal-footer-author">Stacja CPN • Autor gry: Franciszek Badowski</div>
+    </div>
+  </div>
+
+  <script>
+    // --- SAVE STATE & CONFIG ---
+    const SAVE_KEY = 'fsm_beskid_106_save_v1';
+    const defaultState = {
+      money: 150,
+      engineLvl: 1,
+      suspLvl: 1,
+      fuelLvl: 1,
+      hasRack: false,
+      hasLights: false,
+      hasSpoiler: false,
+      paint: '#eab308',
+      highScores: []
+    };
+
+    let save = Object.assign({}, defaultState, JSON.parse(localStorage.getItem(SAVE_KEY) || '{}'));
+    function persistSave() {
+      localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+    }
+
+    const PAINTS = [
+      { name: 'Żółty Beskid', color: '#eab308' },
+      { name: 'Czerwień FSO', color: '#dc2626' },
+      { name: 'Morski PRL', color: '#0284c7' },
+      { name: 'Rajdowy #106', color: '#f8fafc' }
+    ];
+
+    // --- WEB AUDIO SYNTH ---
+    let audioCtx = null;
+    function playSound(type) {
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        const now = audioCtx.currentTime;
+
+        if (type === 'coin') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(660, now);
+          osc.frequency.exponentialRampToValueAtTime(1180, now + 0.12);
+          gain.gain.setValueAtTime(0.12, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+          osc.start(now); osc.stop(now + 0.14);
+        } else if (type === 'buy') {
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(340, now);
+          osc.frequency.setValueAtTime(510, now + 0.08);
+          gain.gain.setValueAtTime(0.15, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+          osc.start(now); osc.stop(now + 0.22);
+        } else if (type === 'win') {
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(440, now);
+          osc.frequency.setValueAtTime(660, now + 0.1);
+          osc.frequency.setValueAtTime(880, now + 0.2);
+          gain.gain.setValueAtTime(0.1, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+          osc.start(now); osc.stop(now + 0.35);
+        }
+      } catch (e) {}
+    }
+
+    // --- CANVAS & WORLD ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    let W = canvas.width = window.innerWidth;
+    let H = canvas.height = window.innerHeight;
+    window.addEventListener('resize', () => {
+      W = canvas.width = window.innerWidth;
+      H = canvas.height = window.innerHeight;
+    });
+
+    // Time of day modes: 0=Dzień, 1=Zmierzch, 2=Noc, 3=Poranek
+    const TIME_MODES = [
+      { name: '☀️ Dzień', skyTop: '#38bdf8', skyBot: '#bae6fd', dark: 0.0, sunY: 0.22, stars: false },
+      { name: '🌇 Zmierzch', skyTop: '#1e1b4b', skyBot: '#f97316', dark: 0.38, sunY: 0.52, stars: true },
+      { name: '🌙 Noc', skyTop: '#020617', skyBot: '#0f172a', dark: 0.72, sunY: 0.2, stars: true },
+      { name: '🌅 Poranek', skyTop: '#0369a1', skyBot: '#fde047', dark: 0.18, sunY: 0.45, stars: false }
+    ];
+    let timeIndex = 0;
+    let autoTimeCycle = true;
+    let timeProgress = 0;
+
+    // Terrain height function
+    function getTerrainY(x) {
+      const base = H * 0.72;
+      const distFactor = Math.min(1.6, 0.45 + Math.max(0, x) / 38000);
+      const h1 = Math.sin(x * 0.0022) * 58 * distFactor;
+      const h2 = Math.sin(x * 0.0065 + 1.4) * 24 * distFactor;
+      const h3 = Math.cos(x * 0.014) * 8;
+      // Flatten near start and near gas stations (every 4500 px)
+      const modStation = ((x % 4500) + 4500) % 4500;
+      let flatFactor = 1;
+      if (x < 600) flatFactor = Math.max(0, (x - 150) / 450);
+      if (Math.abs(modStation - 2600) < 340) {
+        flatFactor *= Math.min(1, Math.abs(modStation - 2600) / 340);
+      }
+      return base + (h1 + h2 + h3) * flatFactor;
+    }
+
+    function getTerrainSlope(x) {
+      const dx = 6;
+      return Math.atan2(getTerrainY(x + dx) - getTerrainY(x - dx), dx * 2);
+    }
+
+    // Game runtime state
+    let running = false;
+    let paused = false;
+    let gasPressed = false;
+    let brakePressed = false;
+    let particles = [];
+    let coins = [];
+    let nextCoinX = 500;
+
+    const car = {
+      x: 180,
+      y: 0,
+      vx: 0,
+      vy: 0,
+      angle: 0,
+      angVel: 0,
+      wheelRot: 0,
+      fuel: 100,
+      maxFuel: 100,
+      runMoney: 0,
+      distanceM: 0,
+      suspCompression: 0
+    };
+
+    function computeMaxFuel() {
+      return 100 + (save.fuelLvl - 1) * 28 + (save.hasRack ? 20 : 0);
+    }
+
+    function resetRun() {
+      car.x = 180;
+      car.y = getTerrainY(180) - 34;
+      car.vx = 0;
+      car.vy = 0;
+      car.angle = 0;
+      car.angVel = 0;
+      car.wheelRot = 0;
+      car.maxFuel = computeMaxFuel();
+      car.fuel = car.maxFuel;
+      car.runMoney = 0;
+      car.distanceM = 0;
+      particles = [];
+      coins = [];
+      nextCoinX = 480;
+      spawnCoinsUpTo(3000);
+      updateHUD();
+    }
+
+    function spawnCoinsUpTo(limitX) {
+      while (nextCoinX < limitX) {
+        const count = 3 + Math.floor(Math.random() * 4);
+        for (let i = 0; i < count; i++) {
+          const cx = nextCoinX + i * 52;
+          const cy = getTerrainY(cx) - 26 - Math.sin(i * 0.7) * 14;
+          coins.push({ x: cx, y: cy, collected: false, val: 5 + Math.floor(cx / 6000) * 5 });
+        }
+        nextCoinX += 750 + Math.random() * 650;
+      }
+    }
+
+    // --- CONTROLS ---
+    function bindHold(btn, setter) {
+      const down = (e) => { e.preventDefault(); setter(true); btn.classList.add('active'); };
+      const up = (e) => { e.preventDefault(); setter(false); btn.classList.remove('active'); };
+      btn.addEventListener('touchstart', down, { passive: false });
+      btn.addEventListener('touchend', up, { passive: false });
+      btn.addEventListener('touchcancel', up, { passive: false });
+      btn.addEventListener('mousedown', down);
+      window.addEventListener('mouseup', () => { setter(false); btn.classList.remove('active'); });
+    }
+    bindHold(document.getElementById('btnGas'), (v) => gasPressed = v);
+    bindHold(document.getElementById('btnBrake'), (v) => brakePressed = v);
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') gasPressed = true;
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') brakePressed = true;
+    });
+    window.addEventListener('keyup', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') gasPressed = false;
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') brakePressed = false;
+    });
+
+    document.getElementById('timeToggleBtn').addEventListener('click', () => {
+      autoTimeCycle = false;
+      timeIndex = (timeIndex + 1) % TIME_MODES.length;
+      document.getElementById('timeToggleBtn').textContent = TIME_MODES[timeIndex].name;
+    });
+
+    // --- PHYSICS UPDATE ---
+    function updatePhysics(dt) {
+      if (!running || paused) return;
+
+      if (autoTimeCycle) {
+        timeProgress += dt * 0.025;
+        const idx = Math.floor(timeProgress) % TIME_MODES.length;
+        if (idx !== timeIndex) {
+          timeIndex = idx;
+          document.getElementById('timeToggleBtn').textContent = TIME_MODES[timeIndex].name;
+        }
+      }
+
+      const maxSpeed = 11.5 + (save.engineLvl - 1) * 1.9 + (save.hasSpoiler ? 0.8 : 0);
+      const accel = 0.28 + (save.engineLvl - 1) * 0.055;
+      const grip = 0.92 + (save.suspLvl - 1) * 0.015;
+      const wheelBase = 48; // half wheelbase
+      const wheelRadius = 15;
+      const rideHeight = 20;
+
+      const cosA = Math.cos(car.angle);
+      const sinA = Math.sin(car.angle);
+
+      const rearX = car.x - cosA * wheelBase;
+      const frontX = car.x + cosA * wheelBase;
+      const rearGroundY = getTerrainY(rearX);
+      const frontGroundY = getTerrainY(frontX);
+
+      const rearWheelY = car.y + rideHeight - sinA * wheelBase + wheelRadius;
+      const frontWheelY = car.y + rideHeight + sinA * wheelBase + wheelRadius;
+
+      const rearOnGround = rearWheelY >= rearGroundY - 3;
+      const frontOnGround = frontWheelY >= frontGroundY - 3;
+      const grounded = rearOnGround || frontOnGround;
+
+      // Gravity
+      car.vy += 0.48;
+
+      if (grounded) {
+        const targetCenterY = (rearGroundY + frontGroundY) * 0.5 - wheelRadius - rideHeight;
+        const targetAngle = Math.atan2(frontGroundY - rearGroundY, wheelBase * 2);
+
+        const springK = 0.24 + (save.suspLvl - 1) * 0.03;
+        const dy = targetCenterY - car.y;
+        car.vy = car.vy * 0.55 + dy * springK;
+        car.suspCompression = Math.max(-6, Math.min(8, dy));
+
+        // Pitch torque on accel/brake
+        let pitchKick = 0;
+        if (gasPressed && car.fuel > 0) pitchKick -= 0.018;
+        if (brakePressed) pitchKick += 0.022;
+
+        car.angle += (targetAngle - car.angle) * 0.22 + pitchKick;
+        car.angVel = 0;
+
+        // Drive forces (FWD Beskid 106)
+        const slope = getTerrainSlope(car.x);
+        car.vx += Math.sin(slope) * 0.22;
+
+        if (gasPressed && car.fuel > 0) {
+          car.vx += accel * Math.cos(slope);
+          car.fuel -= (0.045 + (save.engineLvl - 1) * 0.004);
+          if (Math.random() < 0.45) {
+            particles.push({
+              x: rearX - 18, y: rearGroundY - 12,
+              vx: -1.5 - Math.random(), vy: -0.6 - Math.random() * 0.6,
+              life: 1, size: 4 + Math.random() * 4, color: 'rgba(200,210,220,0.45)'
+            });
+          }
+        }
+        if (brakePressed) {
+          car.vx -= 0.34;
+        }
+
+        car.vx *= (0.985 * grip / 0.94);
+        if (car.vx > maxSpeed) car.vx = maxSpeed;
+        if (car.vx < -4.5) car.vx = -4.5;
+      } else {
+        // Air control
+        car.suspCompression *= 0.85;
+        if (gasPressed) car.angVel -= 0.0045;
+        if (brakePressed) car.angVel += 0.0045;
+        car.angVel *= 0.94;
+        car.angle += car.angVel;
+      }
+
+      car.x += car.vx;
+      car.y += car.vy;
+      if (car.x < 90) { car.x = 90; car.vx = 0; }
+      car.wheelRot += car.vx / wheelRadius;
+
+      // Distance & Coins
+      const newDist = Math.max(car.distanceM, Math.floor((car.x - 180) / 14));
+      if (newDist > car.distanceM) {
+        car.distanceM = newDist;
+      }
+
+      spawnCoinsUpTo(car.x + W + 800);
+      for (const c of coins) {
+        if (!c.collected && Math.hypot(car.x - c.x, car.y - c.y) < 46) {
+          c.collected = true;
+          save.money += c.val;
+          car.runMoney += c.val;
+          persistSave();
+          playSound('coin');
+        }
+      }
+
+      // Check CPN Station Proximity (stations at x = 2600, 7100, 11600, ...)
+      const modStation = ((car.x % 4500) + 4500) % 4500;
+      const nearStation = car.x > 1000 && Math.abs(modStation - 2600) < 170;
+      document.getElementById('stationBanner').style.display = nearStation ? 'flex' : 'none';
+
+      // Fuel check
+      if (car.fuel <= 0) {
+        car.fuel = 0;
+        if (Math.abs(car.vx) < 0.25 && grounded) {
+          endGame('BRAK PALIWA W BAKU');
+        }
+      }
+
+      // Particles update
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= 0.035;
+        if (p.life <= 0) particles.splice(i, 1);
+      }
+
+      updateHUD();
+    }
+
+    function updateHUD() {
+      document.getElementById('hudMoney').textContent = save.money;
+      document.getElementById('hudDist').textContent = car.distanceM;
+      const pct = Math.max(0, Math.min(100, (car.fuel / car.maxFuel) * 100));
+      document.getElementById('fuelBar').style.width = pct + '%';
+    }
+
+    function endGame(reason) {
+      running = false;
+      document.getElementById('stationBanner').style.display = 'none';
+      save.highScores.push({
+        dist: car.distanceM,
+        money: car.runMoney,
+        date: new Date().toLocaleDateString('pl-PL')
+      });
+      save.highScores.sort((a, b) => b.dist - a.dist);
+      save.highScores = save.highScores.slice(0, 5);
+      persistSave();
+
+      document.getElementById('gameOverReason').textContent = reason;
+      document.getElementById('gameOverSummary').textContent =
+        `Przejechałeś ${car.distanceM} m i zdobyłeś ${car.runMoney} zł w tym przejeździe.`;
+      renderHighScores();
+      document.getElementById('gameOverOverlay').classList.remove('hidden');
+    }
+
+    // --- RENDERING ---
+    function drawScene() {
+      const tm = TIME_MODES[timeIndex];
+
+      // Sky gradient
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, H);
+      skyGrad.addColorStop(0, tm.skyTop);
+      skyGrad.addColorStop(1, tm.skyBot);
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, W, H);
+
+      // Stars at dusk/night
+      if (tm.stars) {
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        for (let i = 0; i < 45; i++) {
+          const sx = ((i * 197 + car.x * 0.02) % W + W) % W;
+          const sy = (i * 89) % (H * 0.45);
+          ctx.fillRect(sx, sy, (i % 3 === 0 ? 2.5 : 1.5), (i % 3 === 0 ? 2.5 : 1.5));
+        }
+      }
+
+      // Sun / Moon
+      const celestialY = H * tm.sunY;
+      ctx.beginPath();
+      ctx.arc(W * 0.78, celestialY, timeIndex === 2 ? 24 : 34, 0, Math.PI * 2);
+      ctx.fillStyle = timeIndex === 2 ? '#f1f5f9' : '#fde047';
+      ctx.fill();
+
+      // Parallax Hills (Far)
+      ctx.fillStyle = timeIndex === 2 ? '#0f172a' : '#4d7c0f';
+      ctx.beginPath();
+      ctx.moveTo(0, H);
+      for (let sx = 0; sx <= W + 40; sx += 40) {
+        const wx = sx + car.x * 0.18;
+        const hy = H * 0.56 + Math.sin(wx * 0.0018) * 45 + Math.cos(wx * 0.004) * 20;
+        ctx.lineTo(sx, hy);
+      }
+      ctx.lineTo(W, H);
+      ctx.fill();
+
+      // Parallax Countryside Structures (Cottages, Radio Towers, Windmills)
+      drawParallaxProps(tm.dark > 0.3);
+
+      // Camera offset
+      const camX = car.x - W * 0.28;
+
+      // Gas Stations CPN along the road (every 4500px at offset 2600)
+      const firstStationIdx = Math.max(0, Math.floor((camX - 400) / 4500));
+      const lastStationIdx = Math.floor((camX + W + 400) / 4500);
+      for (let idx = firstStationIdx; idx <= lastStationIdx; idx++) {
+        const stWorldX = idx * 4500 + 2600;
+        drawCPNStation(stWorldX - camX, getTerrainY(stWorldX));
+      }
+
+      // Roadside Poles & Kilometer Posts
+      const startPole = Math.floor(camX / 260) * 260;
+      for (let wx = startPole; wx < camX + W + 260; wx += 260) {
+        if (wx < 200) continue;
+        const sx = wx - camX;
+        const gy = getTerrainY(wx);
+        // Telegraph pole
+        ctx.strokeStyle = '#475569';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(sx, gy);
+        ctx.lineTo(sx, gy - 72);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(sx - 10, gy - 66);
+        ctx.lineTo(sx + 10, gy - 66);
+        ctx.stroke();
+
+        // Sagging wire to next pole
+        const nextSx = sx + 260;
+        const nextGy = getTerrainY(wx + 260);
+        ctx.strokeStyle = 'rgba(30,41,59,0.5)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(sx, gy - 66);
+        ctx.quadraticCurveTo((sx + nextSx) / 2, (gy + nextGy) / 2 - 48, nextSx, nextGy - 66);
+        ctx.stroke();
+      }
+
+      // Terrain / Road Fill
+      ctx.beginPath();
+      ctx.moveTo(0, H);
+      for (let sx = 0; sx <= W + 16; sx += 16) {
+        ctx.lineTo(sx, getTerrainY(camX + sx));
+      }
+      ctx.lineTo(W, H);
+      ctx.fillStyle = timeIndex === 2 ? '#14261c' : '#3f6212';
+      ctx.fill();
+
+      // Asphalt Top Layer
+      ctx.beginPath();
+      for (let sx = 0; sx <= W + 16; sx += 16) {
+        const y = getTerrainY(camX + sx);
+        if (sx === 0) ctx.moveTo(sx, y);
+        else ctx.lineTo(sx, y);
+      }
+      ctx.lineWidth = 14;
+      ctx.strokeStyle = '#334155';
+      ctx.stroke();
+
+      // White road edge stripe
+      ctx.beginPath();
+      for (let sx = 0; sx <= W + 16; sx += 16) {
+        const y = getTerrainY(camX + sx) - 4;
+        if (sx === 0) ctx.moveTo(sx, y);
+        else ctx.lineTo(sx, y);
+      }
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.stroke();
+
+      // Coins
+      for (const c of coins) {
+        if (c.collected) continue;
+        const sx = c.x - camX;
+        if (sx < -30 || sx > W + 30) continue;
+        ctx.save();
+        ctx.translate(sx, c.y + Math.sin(performance.now() * 0.005 + c.x) * 3);
+        ctx.fillStyle = '#facc15';
+        ctx.beginPath();
+        ctx.arc(0, 0, 12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#b45309';
+        ctx.stroke();
+        ctx.fillStyle = '#78350f';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('zł', 0, 1);
+        ctx.restore();
+      }
+
+      // Exhaust Particles
+      for (const p of particles) {
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x - camX, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Draw FSM Beskid 106
+      drawBeskid106(car.x - camX, car.y, car.angle, tm.dark > 0.3);
+
+      // Night ambient darkness tint
+      if (tm.dark > 0) {
+        ctx.fillStyle = `rgba(2, 6, 23, ${tm.dark * 0.45})`;
+        ctx.fillRect(0, 0, W, H);
+      }
+    }
+
+    function drawParallaxProps(isNight) {
+      const span = 520;
+      const scroll = car.x * 0.35;
+      const start = Math.floor(scroll / span) * span;
+      for (let x = start; x < scroll + W + span; x += span) {
+        const sx = x - scroll;
+        const baseY = H * 0.56 + Math.sin((x * 0.5) * 0.0018) * 35;
+        const kind = Math.abs(Math.floor(x / span)) % 3;
+
+        if (kind === 0) {
+          // Polish cottage
+          ctx.fillStyle = isNight ? '#1e293b' : '#f1f5f9';
+          ctx.fillRect(sx, baseY - 26, 46, 26);
+          ctx.fillStyle = '#991b1b';
+          ctx.beginPath();
+          ctx.moveTo(sx - 5, baseY - 26);
+          ctx.lineTo(sx + 23, baseY - 44);
+          ctx.lineTo(sx + 51, baseY - 26);
+          ctx.fill();
+          ctx.fillStyle = isNight ? '#facc15' : '#38bdf8';
+          ctx.fillRect(sx + 10, baseY - 18, 9, 9);
+          ctx.fillRect(sx + 27, baseY - 18, 9, 9);
+        } else if (kind === 1) {
+          // Radio transmitter tower
+          ctx.strokeStyle = '#64748b';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(sx + 10, baseY);
+          ctx.lineTo(sx + 18, baseY - 75);
+          ctx.lineTo(sx + 26, baseY);
+          ctx.stroke();
+          if (isNight && Math.floor(performance.now() / 500) % 2 === 0) {
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.arc(sx + 18, baseY - 77, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        } else {
+          // Barn
+          ctx.fillStyle = '#7c2d12';
+          ctx.fillRect(sx, baseY - 30, 56, 30);
+          ctx.fillStyle = '#451a03';
+          ctx.beginPath();
+          ctx.moveTo(sx - 4, baseY - 30);
+          ctx.lineTo(sx + 28, baseY - 46);
+          ctx.lineTo(sx + 60, baseY - 30);
+          ctx.fill();
+        }
+      }
+    }
+
+    function drawCPNStation(sx, gy) {
+      if (sx < -250 || sx > W + 250) return;
+      ctx.save();
+      ctx.translate(sx, gy);
+
+      // Canopy pillars
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillRect(-75, -92, 8, 92);
+      ctx.fillRect(67, -92, 8, 92);
+
+      // Canopy roof (Red & White CPN style)
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(-95, -108, 190, 18);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(-95, -94, 190, 6);
+
+      // CPN Sign
+      ctx.fillStyle = '#fef08a';
+      ctx.font = '900 14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('CPN • ZDRAPKI & PALIWO', 0, -95);
+
+      // Fuel Pumps
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(-36, -38, 18, 38);
+      ctx.fillRect(18, -38, 18, 38);
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(-33, -33, 12, 10);
+      ctx.fillRect(21, -33, 12, 10);
+
+      ctx.restore();
+    }
+
+    function drawBeskid106(sx, sy, angle, headlightsOn) {
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.rotate(angle);
+
+      const scale = 1.26;
+      ctx.scale(scale, scale);
+
+      // Headlight beams at dusk/night
+      if (headlightsOn) {
+        const beamGrad = ctx.createLinearGradient(52, 2, 230, 15);
+        beamGrad.addColorStop(0, 'rgba(254, 249, 195, 0.55)');
+        beamGrad.addColorStop(1, 'rgba(254, 249, 195, 0)');
+        ctx.fillStyle = beamGrad;
+        ctx.beginPath();
+        ctx.moveTo(52, 0);
+        ctx.lineTo(230, -24);
+        ctx.lineTo(230, 38);
+        ctx.lineTo(52, 8);
+        ctx.fill();
+
+        if (save.hasLights) {
+          // Rally spotlights beam
+          ctx.beginPath();
+          ctx.moveTo(54, -2);
+          ctx.lineTo(290, -45);
+          ctx.lineTo(290, 32);
+          ctx.fill();
+        }
+      }
+
+      // Suspension struts connecting chassis to wheel hubs
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(-36, 4); ctx.lineTo(-36, 16);
+      ctx.moveTo(36, 4); ctx.lineTo(36, 16);
+      ctx.stroke();
+
+      // Roof rack if purchased
+      if (save.hasRack) {
+        ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(-26, -24, 34, 4);
+        ctx.fillStyle = '#92400e';
+        ctx.fillRect(-22, -32, 14, 8);
+        ctx.fillStyle = '#b45309';
+        ctx.fillRect(-6, -30, 11, 6);
+      }
+
+      // Rear Spoiler if purchased
+      if (save.hasSpoiler) {
+        ctx.fillStyle = '#1e293b';
+        ctx.beginPath();
+        ctx.moveTo(-48, -16);
+        ctx.lineTo(-56, -24);
+        ctx.lineTo(-44, -22);
+        ctx.fill();
+      }
+
+      // Iconic Monobox Wedge Body of FSM Beskid 106
+      ctx.fillStyle = save.paint;
+      ctx.beginPath();
+      ctx.moveTo(-50, 10);     // Rear bottom
+      ctx.lineTo(-52, -12);    // Rear hatch
+      ctx.lineTo(-34, -20);    // Roof rear
+      ctx.lineTo(8, -20);      // Roof front
+      ctx.lineTo(54, 1);       // Steep monobox windshield + hood
+      ctx.lineTo(54, 10);      // Front bumper top
+      ctx.closePath();
+      ctx.fill();
+      ctx.lineWidth = 1.6;
+      ctx.strokeStyle = '#0f172a';
+      ctx.stroke();
+
+      // Rally stripe if white rally paint
+      if (save.paint === '#f8fafc') {
+        ctx.fillStyle = '#dc2626';
+        ctx.fillRect(-50, 1, 103, 4);
+        ctx.fillStyle = '#0f172a';
+        ctx.font = 'bold 8px sans-serif';
+        ctx.fillText('106', -14, -2);
+      }
+
+      // Black PRL Plastic Bumpers & Side Trim
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(-54, 7, 12, 6);
+      ctx.fillRect(45, 7, 12, 6);
+      ctx.fillRect(-26, 5, 52, 3);
+
+      // Windows (Steep front windshield + large side windows)
+      ctx.fillStyle = '#bae6fd';
+      ctx.beginPath();
+      ctx.moveTo(-31, -17);
+      ctx.lineTo(6, -17);
+      ctx.lineTo(39, -2);
+      ctx.lineTo(-31, -2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Driver silhouette
+      ctx.fillStyle = '#334155';
+      ctx.beginPath();
+      ctx.arc(-6, -9, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(-11, -5, 10, 4);
+
+      // Headlight & Taillight
+      ctx.fillStyle = headlightsOn ? '#fef08a' : '#f8fafc';
+      ctx.fillRect(51, 1, 4, 5);
+      ctx.fillStyle = brakePressed ? '#ff0000' : '#b91c1c';
+      ctx.fillRect(-53, -8, 3, 7);
+
+      // Rally spotlights on front bumper
+      if (save.hasLights) {
+        ctx.fillStyle = '#facc15';
+        ctx.beginPath();
+        ctx.arc(54, 4, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Wheels (supporting chassis at y = +16)
+      drawWheel(-36, 16, 12, car.wheelRot);
+      drawWheel(36, 16, 12, car.wheelRot);
+
+      ctx.restore();
+    }
+
+    function drawWheel(wx, wy, r, rot) {
+      ctx.save();
+      ctx.translate(wx, wy);
+      ctx.rotate(rot);
+
+      // Tire
+      ctx.fillStyle = '#111827';
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Steel Rim (Stalówka FSM)
+      ctx.fillStyle = '#cbd5e1';
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.56, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Lug nuts / hubcap
+      ctx.fillStyle = '#334155';
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.22, 0, Math.PI * 2);
+      ctx.fill();
+      for (let i = 0; i < 4; i++) {
+        const a = (i * Math.PI) / 2;
+        ctx.fillRect(Math.cos(a) * 4 - 1, Math.sin(a) * 4 - 1, 2, 2);
+      }
+
+      ctx.restore();
+    }
+
+    // --- MAIN LOOP ---
+    let lastTime = performance.now();
+    function loop(now) {
+      const dt = Math.min(0.05, (now - lastTime) / 1000);
+      lastTime = now;
+      updatePhysics(dt);
+      drawScene();
+      requestAnimationFrame(loop);
+    }
+
+    // --- UI: HIGH SCORES ---
+    function renderHighScores() {
+      const lists = [document.getElementById('highScoresList'), document.getElementById('gameOverScoresList')];
+      for (const el of lists) {
+        if (!save.highScores.length) {
+          el.innerHTML = '<div class="score-row"><span>Brak zapisanych tras — ruszaj pierwszy!</span></div>';
+        } else {
+          el.innerHTML = save.highScores.map((s, i) =>
+            `<div class="score-row"><span>#${i + 1} • ${s.dist} m</span><span>+${s.money} zł (${s.date})</span></div>`
+          ).join('');
+        }
+      }
+    }
+
+    // --- UI: GARAGE ---
+    function refreshGarageUI() {
+      document.getElementById('garageMoney').textContent = save.money;
+      document.getElementById('lvlEngine').textContent = save.engineLvl;
+      document.getElementById('lvlSusp').textContent = save.suspLvl;
+      document.getElementById('lvlFuel').textContent = save.fuelLvl;
+
+      const engCost = save.engineLvl * 100;
+      const suspCost = save.suspLvl * 90;
+      const fuelCost = save.fuelLvl * 80;
+
+      const btnEng = document.getElementById('buyEngineBtn');
+      btnEng.textContent = save.engineLvl >= 5 ? 'MAX' : `${engCost} zł`;
+      btnEng.disabled = save.engineLvl >= 5 || save.money < engCost;
+
+      const btnSusp = document.getElementById('buySuspBtn');
+      btnSusp.textContent = save.suspLvl >= 5 ? 'MAX' : `${suspCost} zł`;
+      btnSusp.disabled = save.suspLvl >= 5 || save.money < suspCost;
+
+      const btnFuel = document.getElementById('buyFuelBtn');
+      btnFuel.textContent = save.fuelLvl >= 5 ? 'MAX' : `${fuelCost} zł`;
+      btnFuel.disabled = save.fuelLvl >= 5 || save.money < fuelCost;
+
+      const btnRack = document.getElementById('buyRackBtn');
+      btnRack.textContent = save.hasRack ? 'ZAMONTOWANO' : '140 zł';
+      btnRack.disabled = save.hasRack || save.money < 140;
+
+      const btnLights = document.getElementById('buyLightsBtn');
+      btnLights.textContent = save.hasLights ? 'ZAMONTOWANO' : '120 zł';
+      btnLights.disabled = save.hasLights || save.money < 120;
+
+      const btnSpoiler = document.getElementById('buySpoilerBtn');
+      btnSpoiler.textContent = save.hasSpoiler ? 'ZAMONTOWANO' : '160 zł';
+      btnSpoiler.disabled = save.hasSpoiler || save.money < 160;
+
+      const grid = document.getElementById('paintGrid');
+      grid.innerHTML = PAINTS.map(p => `
+        <button class="paint-btn ${save.paint === p.color ? 'selected' : ''}" data-color="${p.color}">
+          <span class="swatch" style="background:${p.color}"></span>
+          <span>${p.name}</span>
+        </button>
+      `).join('');
+
+      grid.querySelectorAll('.paint-btn').forEach(b => {
+        b.addEventListener('click', () => {
+          save.paint = b.dataset.color;
+          persistSave();
+          playSound('buy');
+          refreshGarageUI();
+        });
+      });
+    }
+
+    document.getElementById('buyEngineBtn').addEventListener('click', () => {
+      const cost = save.engineLvl * 100;
+      if (save.engineLvl < 5 && save.money >= cost) {
+        save.money -= cost; save.engineLvl++; persistSave(); playSound('buy'); refreshGarageUI(); updateHUD();
+      }
+    });
+    document.getElementById('buySuspBtn').addEventListener('click', () => {
+      const cost = save.suspLvl * 90;
+      if (save.suspLvl < 5 && save.money >= cost) {
+        save.money -= cost; save.suspLvl++; persistSave(); playSound('buy'); refreshGarageUI(); updateHUD();
+      }
+    });
+    document.getElementById('buyFuelBtn').addEventListener('click', () => {
+      const cost = save.fuelLvl * 80;
+      if (save.fuelLvl < 5 && save.money >= cost) {
+        save.money -= cost; save.fuelLvl++;
+        car.maxFuel = computeMaxFuel();
+        car.fuel = car.maxFuel;
+        persistSave(); playSound('buy'); refreshGarageUI(); updateHUD();
+      }
+    });
+    document.getElementById('buyRackBtn').addEventListener('click', () => {
+      if (!save.hasRack && save.money >= 140) {
+        save.money -= 140; save.hasRack = true; car.maxFuel = computeMaxFuel(); car.fuel = car.maxFuel;
+        persistSave(); playSound('buy'); refreshGarageUI(); updateHUD();
+      }
+    });
+    document.getElementById('buyLightsBtn').addEventListener('click', () => {
+      if (!save.hasLights && save.money >= 120) {
+        save.money -= 120; save.hasLights = true;
+        persistSave(); playSound('buy'); refreshGarageUI();
+      }
+    });
+    document.getElementById('buySpoilerBtn').addEventListener('click', () => {
+      if (!save.hasSpoiler && save.money >= 160) {
+        save.money -= 160; save.hasSpoiler = true;
+        persistSave(); playSound('buy'); refreshGarageUI();
+      }
+    });
+
+    // --- UI: CPN STATION & SCRATCHCARDS ---
+    const SCRATCH_TIERS = [
+      { cost: 15, prizes: [0, 0, 10, 20, 35, 50] },
+      { cost: 35, prizes: [0, 15, 30, 50, 80, 120] },
+      { cost: 70, prizes: [0, 30, 70, 120, 180, 250] }
+    ];
+    let selectedTier = 0;
+    let activeCard = null;
+    const sCanvas = document.getElementById('scratchCanvas');
+    const sCtx = sCanvas.getContext('2d');
+    let isScratching = false;
+
+    function resetScratchLayer(locked) {
+      sCtx.globalCompositeOperation = 'source-over';
+      sCtx.fillStyle = locked ? '#475569' : '#94a3b8';
+      sCtx.fillRect(0, 0, sCanvas.width, sCanvas.height);
+      sCtx.fillStyle = '#0f172a';
+      sCtx.font = '900 18px sans-serif';
+      sCtx.textAlign = 'center';
+      sCtx.fillText(locked ? 'KUP ZDRAPKĘ PONIŻEJ' : 'ZDRAP PALCEM TUTAJ!', sCanvas.width / 2, sCanvas.height / 2 + 6);
+    }
+
+    function refreshStationUI() {
+      document.getElementById('stationMoney').textContent = save.money;
+      const fuelPct = Math.round((car.fuel / car.maxFuel) * 100);
+      document.getElementById('stationFuelPct').textContent = fuelPct + '%';
+      const refuelBtn = document.getElementById('refuelBtn');
+      refuelBtn.disabled = fuelPct >= 100 || save.money < 25;
+      refuelBtn.textContent = fuelPct >= 100 ? 'Bak pełny' : 'Zatankuj (25 zł)';
+    }
+
+    document.querySelectorAll('.scratch-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.scratch-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        selectedTier = Number(tab.dataset.tier);
+      });
+    });
+
+    document.getElementById('buyScratchBtn').addEventListener('click', () => {
+      const tier = SCRATCH_TIERS[selectedTier];
+      if (save.money < tier.cost) {
+        alert('Za mało gotówki na tę zdrapkę!');
+        return;
+      }
+      save.money -= tier.cost;
+      persistSave();
+      refreshStationUI();
+      updateHUD();
+
+      const prize = tier.prizes[Math.floor(Math.random() * tier.prizes.length)];
+      activeCard = { prize, claimed: false };
+      document.getElementById('scratchPrizeText').textContent = `${prize} zł`;
+      document.getElementById('scratchSubText').textContent = prize > 0 ? 'Gratulacje! Wygrana dodana po zdrapaniu!' : 'Pusty los — spróbuj ponownie!';
+      resetScratchLayer(false);
+    });
+
+    function claimCardIfNeeded() {
+      if (activeCard && !activeCard.claimed) {
+        activeCard.claimed = true;
+        if (activeCard.prize > 0) {
+          save.money += activeCard.prize;
+          car.runMoney += activeCard.prize;
+          persistSave();
+          playSound('win');
+          refreshStationUI();
+          updateHUD();
+        }
+      }
+    }
+
+    function scratchAt(clientX, clientY) {
+      if (!activeCard) return;
+      const rect = sCanvas.getBoundingClientRect();
+      const x = ((clientX - rect.left) / rect.width) * sCanvas.width;
+      const y = ((clientY - rect.top) / rect.height) * sCanvas.height;
+      sCtx.globalCompositeOperation = 'destination-out';
+      sCtx.beginPath();
+      sCtx.arc(x, y, 22, 0, Math.PI * 2);
+      sCtx.fill();
+      claimCardIfNeeded();
+    }
+
+    sCanvas.addEventListener('mousedown', (e) => { isScratching = true; scratchAt(e.clientX, e.clientY); });
+    window.addEventListener('mouseup', () => { isScratching = false; });
+    sCanvas.addEventListener('mousemove', (e) => { if (isScratching) scratchAt(e.clientX, e.clientY); });
+    sCanvas.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      isScratching = true;
+      const t = e.touches[0];
+      scratchAt(t.clientX, t.clientY);
+    }, { passive: false });
+    sCanvas.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      if (!isScratching) return;
+      const t = e.touches[0];
+      scratchAt(t.clientX, t.clientY);
+    }, { passive: false });
+
+    document.getElementById('revealScratchBtn').addEventListener('click', () => {
+      if (!activeCard) return;
+      sCtx.clearRect(0, 0, sCanvas.width, sCanvas.height);
+      claimCardIfNeeded();
+    });
+
+    document.getElementById('refuelBtn').addEventListener('click', () => {
+      if (save.money >= 25 && car.fuel < car.maxFuel) {
+        save.money -= 25;
+        car.fuel = car.maxFuel;
+        persistSave();
+        playSound('buy');
+        refreshStationUI();
+        updateHUD();
+      }
+    });
+
+    // --- NAVIGATION BETWEEN OVERLAYS ---
+    document.getElementById('startGameBtn').addEventListener('click', () => {
+      document.getElementById('startOverlay').classList.add('hidden');
+      resetRun();
+      running = true;
+      paused = false;
+    });
+
+    document.getElementById('restartBtn').addEventListener('click', () => {
+      document.getElementById('gameOverOverlay').classList.add('hidden');
+      resetRun();
+      running = true;
+      paused = false;
+    });
+
+    function openGarage() {
+      paused = true;
+      refreshGarageUI();
+      document.getElementById('garageOverlay').classList.remove('hidden');
+    }
+    document.getElementById('openGarageBtn').addEventListener('click', openGarage);
+    document.getElementById('startGarageBtn').addEventListener('click', openGarage);
+    document.getElementById('gameOverGarageBtn').addEventListener('click', () => {
+      document.getElementById('gameOverOverlay').classList.add('hidden');
+      openGarage();
+    });
+    document.getElementById('closeGarageBtn').addEventListener('click', () => {
+      document.getElementById('garageOverlay').classList.add('hidden');
+      if (running) paused = false;
+    });
+
+    document.getElementById('enterStationBtn').addEventListener('click', () => {
+      paused = true;
+      car.vx = 0;
+      activeCard = null;
+      resetScratchLayer(true);
+      refreshStationUI();
+      document.getElementById('stationOverlay').classList.remove('hidden');
+    });
+    document.getElementById('closeStationBtn').addEventListener('click', () => {
+      document.getElementById('stationOverlay').classList.add('hidden');
+      paused = false;
+    });
+
+    // Init
+    renderHighScores();
+    resetRun();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
